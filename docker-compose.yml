@@ -1,0 +1,61 @@
+services:
+  app:
+    build: .
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/fir}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379/0}
+      PRIMARY_PROVIDER: ${PRIMARY_PROVIDER:-fake}
+      SECONDARY_PROVIDER: ${SECONDARY_PROVIDER:-fake}
+      PROVIDER_TIMEOUT_SECONDS: ${PROVIDER_TIMEOUT_SECONDS:-5}
+      FAKE_RESPONSE_PREFIX: ${FAKE_RESPONSE_PREFIX:-Fake response}
+      FAKE_PRIMARY_FORCE_FAILURE: ${FAKE_PRIMARY_FORCE_FAILURE:-false}
+      FAKE_SECONDARY_FORCE_FAILURE: ${FAKE_SECONDARY_FORCE_FAILURE:-false}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-60}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-10}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fir
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fir"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
